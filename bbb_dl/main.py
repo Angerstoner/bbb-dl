@@ -117,7 +117,7 @@ class BBBDL(InfoExtractor):
         # Parse metadata.xml
         meta = metadata.find('./meta')
         start_time = xpath_text(metadata, 'start_time')
-        recording_duration = float(xpath_text(metadata, './playback/duration'))/1000.0 # in seconds
+        recording_duration = float(xpath_text(metadata, './playback/duration')) / 1000.0  # in seconds
         title = xpath_text(meta, 'meetingName')
         # bbb_version = xpath_text(meta, 'bbb-origin-version').split(' ')[0]
         # self.to_screen("BBB version: " + bbb_version)
@@ -662,20 +662,20 @@ def get_parser():
         '-kt',
         '--keep-tmp-files',
         action='store_true',
-        help=('keep the temporary files after finish'),
+        help='keep the temporary files after finish',
     )
 
     parser.add_argument(
         '-v',
         '--verbose',
         action='store_true',
-        help=('print more verbose debug informations'),
+        help='print more verbose debug informations',
     )
     parser.add_argument(
         '-ncc',
         '--no-check-certificate',
         action='store_true',
-        help=('Suppress HTTPS certificate validation'),
+        help='Suppress HTTPS certificate validation',
     )
 
     parser.add_argument(
