@@ -47,17 +47,17 @@ _x = lambda p: xpath_with_ns(p, {'xlink': 'http://www.w3.org/1999/xlink'})
 
 class Slide:
     def __init__(
-        self,
-        img_id: str,
-        url: str,
-        filename: str,
-        path: str,
-        width: int,
-        height: int,
-        ts_in: float,
-        ts_out: float,
-        duration: float,
-        annotations: ElementTree.Element = None,
+            self,
+            img_id: str,
+            url: str,
+            filename: str,
+            path: str,
+            width: int,
+            height: int,
+            ts_in: float,
+            ts_out: float,
+            duration: float,
+            annotations: ElementTree.Element = None,
     ):
         self.img_id = img_id
         self.url = url
@@ -92,7 +92,8 @@ class BBBDL(InfoExtractor):
         self.set_downloader(self.ydl)
         self.ffmpeg = FFMPEG(self.ydl, encoder, audiocodec)
 
-    def run(self, dl_url: str, add_webcam: bool, add_annotations: bool, add_cursor, keep_tmp_files: bool, filename: str):
+    def run(self, dl_url: str, add_webcam: bool, add_annotations: bool, add_cursor, keep_tmp_files: bool,
+            filename: str):
         m_obj = self._VALID_URL_RE.match(dl_url)
 
         video_id = m_obj.group('id')
@@ -116,62 +117,12 @@ class BBBDL(InfoExtractor):
         # Parse metadata.xml
         meta = metadata.find('./meta')
         start_time = xpath_text(metadata, 'start_time')
+        recording_duration = float(xpath_text(metadata, './playback/duration'))/1000.0 # in seconds
         title = xpath_text(meta, 'meetingName')
-        bbb_version = xpath_text(meta, 'bbb-origin-version').split(' ')[0]
-        self.to_screen("BBB version: " + bbb_version)
+        # bbb_version = xpath_text(meta, 'bbb-origin-version').split(' ')[0]
+        # self.to_screen("BBB version: " + bbb_version)
 
-        # Downloading Slides
-        images = shapes.findall(_s("./svg:image[@class='slide']"))
-        slides_infos = []
-        img_path_to_filename = {}
-        counter = 0
-        for image in images:
-            img_path = image.get(_x('xlink:href'))
-
-            image_id = image.get('id')
-            image_url = video_website + '/presentation/' + video_id + '/' + img_path
-            image_width = int(image.get('width'))
-            image_height = int(image.get('height'))
-            slide_annotations = shapes.find(_s("./svg:g[@image='{}']".format(image_id)))
-
-            if img_path.endswith('deskshare.png'):
-                image_url = video_website + '/presentation/' + video_id + '/deskshare/deskshare.webm'
-                slide_filename = 'deskshare.webm'
-            else:
-                if img_path not in img_path_to_filename:
-                    slide_filename = 'slide-{:03d}'.format(counter) + '.' + determine_ext(img_path)
-                    img_path_to_filename[img_path] = slide_filename
-                    counter += 1
-                else:
-                    slide_filename = img_path_to_filename[img_path]
-
-            slide_path = video_id + '/' + slide_filename
-            slide_ts_in = float(image.get('in'))
-            slide_ts_out = float(image.get('out'))
-
-            slides_infos.append(
-                Slide(
-                    image_id,
-                    image_url,
-                    slide_filename,
-                    slide_path,
-                    image_width,
-                    image_height,
-                    slide_ts_in,
-                    slide_ts_out,
-                    max(0, slide_ts_out - slide_ts_in),
-                    slide_annotations,
-                )
-            )
-
-        self.to_screen("Downloading slides")
-        self._write_slides(slides_infos, self.ydl)
-        if add_annotations:
-            slides_infos = self._add_annotations(slides_infos)
-        if add_cursor:
-            slides_infos = self._add_cursor(slides_infos, cursor_infos)
-
-        # Downlaoding Webcam / Deskshare
+        # Downloading Webcam / Deskshare
         video_base_url = video_website + '/presentation/' + video_id
 
         webcams_path = video_id + '/webcams.webm'
@@ -202,6 +153,58 @@ class BBBDL(InfoExtractor):
         except DownloadError:
             pass
 
+        # Downloading Slides
+        images = shapes.findall(_s("./svg:image[@class='slide']"))
+        slides_infos = []
+        img_path_to_filename = {}
+        counter = 0
+        for image in images:
+            img_path = image.get(_x('xlink:href'))
+
+            image_id = image.get('id')
+            image_url = video_website + '/presentation/' + video_id + '/' + img_path
+            image_width = int(image.get('width'))
+            image_height = int(image.get('height'))
+            slide_annotations = shapes.find(_s("./svg:g[@image='{}']".format(image_id)))
+
+            if img_path.endswith('deskshare.png'):
+                image_url = video_website + '/presentation/' + video_id + '/deskshare/deskshare.webm'
+                slide_filename = 'deskshare.webm'
+            else:
+                if img_path not in img_path_to_filename:
+                    slide_filename = 'slide-{:03d}'.format(counter) + '.' + determine_ext(img_path)
+                    img_path_to_filename[img_path] = slide_filename
+                    counter += 1
+                else:
+                    slide_filename = img_path_to_filename[img_path]
+
+            slide_path = video_id + '/' + slide_filename
+            slide_ts_in = float(image.get('in'))
+            slide_ts_out = float(image.get('out'))
+            slide_ts_duration = max(0.0, min(recording_duration - slide_ts_in, slide_ts_out - slide_ts_in))
+
+            slides_infos.append(
+                Slide(
+                    image_id,
+                    image_url,
+                    slide_filename,
+                    slide_path,
+                    image_width,
+                    image_height,
+                    slide_ts_in,
+                    slide_ts_out,
+                    slide_ts_duration,
+                    slide_annotations,
+                )
+            )
+
+        self.to_screen("Downloading slides")
+        self._write_slides(slides_infos, self.ydl)
+        if add_annotations:
+            slides_infos = self._add_annotations(slides_infos)
+        if add_cursor:
+            slides_infos = self._add_cursor(slides_infos, cursor_infos)
+
         # Post processing
         slideshow_w, slideshow_h = self._rescale_slides(slides_infos)
 
@@ -212,7 +215,7 @@ class BBBDL(InfoExtractor):
         if filename is not None:
             result_path = filename
         else:
-            result_path = formatted_date + '_' + title.replace('/','_',title.count('/')) + '.mp4'
+            result_path = formatted_date + '_' + title.replace('/', '_', title.count('/')) + '.mp4'
 
         self.to_screen("Mux Slideshow")
         webcam_w, webcam_h = self._get_webcam_size(slideshow_w, slideshow_h)
@@ -317,7 +320,7 @@ class BBBDL(InfoExtractor):
                     old_filename_parts = slide.filename.split('.')
                     new_path = old_path_parts[0] + '_f{:02d}_p{:02d}.'.format(frame_id, i) + old_path_parts[1]
                     new_filename = (
-                        old_filename_parts[0] + '_f{:02d}_p{:02d}.'.format(frame_id, i) + old_filename_parts[1]
+                            old_filename_parts[0] + '_f{:02d}_p{:02d}.'.format(frame_id, i) + old_filename_parts[1]
                     )
 
                     self.to_screen(
